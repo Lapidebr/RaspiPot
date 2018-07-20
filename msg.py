@@ -1,19 +1,19 @@
- # This Python file uses the following encoding: utf-8
+#coding: utf-8
+
 import time
 import random
 import datetime
 import telepot
 import os
+import subprocess
 import json
 import requests
-# Carrega as bibliotecas DHT11 
-import Adafruit_DHT
-import RPi.GPIO as GPIO
+import platform
 
+versao = "0.5.1"
+dataVersao = "Última atualização dia 31/05/2017, versão 1"
 
-versao ="19072018.1"
-
-print(time.strftime("%d/%m/%Y %H:%M:%S"), "Bot de telegran para Raspi versao: ",versao,"Criado por Frederico Oliveira e Lucas Cassiano")
+print(time.strftime("%d/%m/%Y %H:%M:%S"), "Bot de telegran para Raspi versão: ",versao,"Criado por Frederico Oliveira e Lucas Cassiano")
 
 tokenColetaTxt = open('token.txt', 'r')
 idToken = tokenColetaTxt.read()
@@ -23,6 +23,9 @@ def handle(msg):
     usuario = msg['chat']['username'] #adicionado outra chamada de informações do telegran, agora o username
     command = msg['text']
     dataMensagem = time.strftime('%d/%m/%Y %H:%M:%S')
+    sistemaOperacional = verificarSistemaOperacional() #Detectando a versão do sistema operacional e retornando uma string
+
+    global versao, dataVersao
 
     print('Comando executado: ', command)
     
@@ -30,84 +33,110 @@ def handle(msg):
         bot.sendMessage(chat_id, random.randint(1,10))
 
     elif(command == '/help' or command == '/start'):
-        arquivoHelp = open('help.txt', 'r')
-        helpLeitura = arquivoHelp.read()
+        helpLeitura = consultarAjuda()
         bot.sendMessage(chat_id, helpLeitura)
-        arquivoHelp.close()
 
     elif (command == '/time'):
         bot.sendMessage(chat_id, str(datetime.datetime.now()))
 
     elif (command == '/cput'):
-		os.system("./cput.sh")
-		arquivo = open('temp.txt', 'r') #atribuindo o arquivo para a variável
-		mensagemTxt = arquivo.read() #armazenando o conteúdo do arquivo em uma variável
-		bot.sendMessage(chat_id, mensagemTxt) #Enviado mensagem
-		arquivo.close()
+        mensagemTxt = consultarTemperatura(sistemaOperacional)
+        bot.sendMessage(chat_id, mensagemTxt)
 
     elif (command == '/loop'):
-        lines = open('frases.txt').read().splitlines()
-        myLines = random.choice(lines)
-        bot.sendMessage(chat_id, myLines)
-        lines.close()
-
+        linhas = frasesAleatorias()
+        bot.sendMessage(chat_id, linhas)
+	
     elif (command == '/weather'):
-       dadosColetados = coletarDadosAtmosfericos()
-       bot.sendMessage(chat_id, dadosColetados)
+        dadosColetados = coletarDadosAtmosfericos()
+        bot.sendMessage(chat_id, dadosColetados)
 
     elif (command == '/currency'):
         mensagemTxt = cotacaoDolar()
         bot.sendMessage(chat_id, mensagemTxt)
-
+	
     elif (command == '/uptime'):
-        os.system("uptime > temp.txt")
-        arquivo = open('temp.txt', 'r') 
-        mensagemTxt = arquivo.read()
+        mensagemTxt = tempoLigado(sistemaOperacional)
         bot.sendMessage(chat_id, mensagemTxt)
-        arquivo.close()
-		
-    elif (command == '/dht11'):
-		bot.sendMessage(chat_id, "Carregando dados do sensor DHT11...")
-		sensor = Adafruit_DHT.DHT11 # Define o tipo de sensor
-		GPIO.setmode(GPIO.BOARD)
-		pino_sensor = 25 # Define o tipo de sensor
-		umid, temp = Adafruit_DHT.read_retry(sensor, pino_sensor); # Define o tipo de sensor
-		if umid is not None and temp is not None:    # Caso leitura esteja ok, mostra os valores na tela
-			mensagemTxt = ("Temperatura = {0:0.1f}  Umidade = {1:0.1f}\n").format(temp, umid);
-			bot.sendMessage(chat_id, mensagemTxt)
-      
+
+    elif (command == '/version'):
+        mensagemTxt = "Versão " + versao + ", " + dataVersao
+        bot.sendMessage(chat_id, mensagemTxt)
+    
+    elif (command == '/print'):
+        bot.sendMessage(chat_id, "Carregando foto...")
+        img = open('img/rola.jpg', 'rb')
+        bot.sendPhoto(chat_id, img, caption=None, disable_notification=None, reply_to_message_id=None, reply_markup=None)
+        img.close()
+        
     else:
         bot.sendMessage(chat_id, "Comando não cadastrado")
+        
     print(usuario, dataMensagem, '\n')
-    GravarLog(dataMensagem, usuario, command)
+    GravarLog(sistemaOperacional, dataMensagem, usuario, command) #Sempre quando enviar uma mensagem será gravado um log
 
 bot = telepot.Bot(idToken)
 bot.message_loop(handle)
 
+#Gerando o log inicial
 print("Aguardando comandos...")
 arquivolog = open('log.txt', 'a')
-arquivolog.write('\n\n' + time.strftime("%d/%m/%Y %H:%M:%S") +  " Criado por Frederico Oliveira e Lucas Cassiano versão atual: " + versao)#Log inicial
+arquivolog.write('\n\n' + time.strftime("%d/%m/%Y %H:%M:%S") +  " Criado por Frederico Oliveira e Lucas Cassiano versão atual: " + versao) #Log inicial
 arquivolog.close()
 
-def GravarLog(dataMensagemLog, usuarioLog, commandLog):
+'''
+Todas as funções abaixo foram criadas para deixar o código principal limpo, sendo necessário apenas fazer a chamada das funções e aguardar o retorno
+'''
+#Gravando o log de comandos
+def GravarLog(sistemaOperacionalLog, dataMensagemLog, usuarioLog, commandLog):
     arquivolog = open('log.txt', 'a')
-    arquivolog.write('\n'+ dataMensagemLog + ' ' + usuarioLog + ' comando executado: ' + commandLog)
+    arquivolog.write('\n'+ dataMensagemLog + ' ' + usuarioLog + ' comando executado: ' + commandLog + ' ' + sistemaOperacionalLog)
     arquivolog.close()
-	
+
+#Foi criado esta função para que seja chamada no início do código, futuramente estruturar o código para verificar o sistema operacional
+def verificarSistemaOperacional():
+    so = platform.system()
+    if (so == 'Windows'):
+        print("") #Deixei esta parte do código imprimindo vazio, apenas para guardar o bloco
+    else:
+        print("")
+    return so
+
+#EM DESENVOLVIMENTO falta testar no raspi, no windows está retornando normalmente
+def consultarTemperatura(sistemaOP):
+    if(sistemaOP == "Windows"):
+        temperatura = "Nao existe o comando no Windows" 
+    else:
+        temperatura = open('/opt/vc/bin/vcgencmd measure_temp').read() #Modificado o comando para já retornar para graus celcius
+        temperatura.close()
+    return temperatura
+
 #Coletando dados atmoféricos
 def coletarDadosAtmosfericos():
     dadosColetados = ''
     url = requests.get('https://api.hgbrasil.com/weather/?format=json&cid=BRXX0033')
-    respostajson = json.loads(url.content)
-    
+    teste = json.loads(url.content)
+
     dados_array = ['temp','description','currently','city','humidity','wind_speedy','sunrise','sunset', 'date', 'time']
     informacao_user = ['Temperatura: ', 'Condicao tempo: ', 'Periodo: ', 'Cidade: ', 'Umidade do ar: ', 'Velocidade do vento: ', 'Nascimento do sol: ', 'Por do sol: ', '','']
     completa = ['°C', '', '', '', '%', '', '', '', '', '']
 
     for i in range(0, len(dados_array)):
-        dadosColetados += (informacao_user[i] + str(respostajson['results'][dados_array[i]]) + completa[i] + '\n').replace(',', '')
+        dadosColetados += (informacao_user[i] + str(teste['results'][dados_array[i]]) + completa[i] + '\n').replace(',', '')
     dadosColetados += 'Generate with: https://api.hgbrasil.com/weather/'
-    return dadosColetados	
+    return dadosColetados
+
+#Consultando ajuda no
+def consultarAjuda():
+    arquivoHelp = open('temp/help.txt', 'r', encoding='utf-8').read()
+    return arquivoHelp
+    arquivoHelp.close()
+
+def frasesAleatorias():
+    lines = open('temp/frases.txt', 'r', encoding='utf-8').read().splitlines()
+    lines = random.choice(lines)
+    return lines
+    #lines.close()
 
 def cotacaoDolar():
     requisicao = requests.get("http://api.promasters.net.br/cotacao/v1/valores")
@@ -119,6 +148,17 @@ def cotacaoDolar():
                 'Bitcoin R$' + str(resposta['valores']['BTC']['valor']) + '\n\n' +
                 'Generate by http://api.promasters.net.br/cotacao/')
     return(valores)
-	
+
+def tempoLigado(sistemaOP):
+    if (sistemaOP == "Windows"):
+        mensagemTxt = "Comando não encontrado no Windows"
+    else:
+        os.system("./Shell/my-pi-temp.sh")
+        arquivo = open('temp.txt', 'r') 
+        mensagemTxt = arquivo.read()
+        bot.sendMessage(chat_id, mensagemTxt)
+        arquivo.close()
+    return mensagemTxt
+
 while 1:
     time.sleep(10)
