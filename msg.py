@@ -116,14 +116,11 @@ def coletarDadosAtmosfericos():
 
 def cotacaoDolar():
 	try:
-		requisicao = requests.get("http://api.promasters.net.br/cotacao/v1/valores")
+		requisicao = requests.get("https://economia.awesomeapi.com.br/json/all")
 		resposta = json.loads(requisicao.text)
-		valores = ''
-		valores += ('Dólar R$' + str(resposta['valores']['USD']['valor']) + '\n'+
-                'Euro R$' + str(resposta['valores']['EUR']['valor']) + '\n'+
-                'Libra R$' + str(resposta['valores']['GBP']['valor']) + '\n'+
-                'Bitcoin R$' + str(resposta['valores']['BTC']['valor']) + '\n\n' +
-                'Generate by http://api.promasters.net.br/cotacao/')
+		colecttime = (resposta['USD']['create_date'])
+		realtime = (colecttime[11:19])
+		valores = ('Dólar R${}\nEuro R${}\nLibra R${}\nBitcoin R${}\nGenerate by economia.awesomeapi.com.br at {}(USD)'.format(str(resposta['USD']['high']),str(resposta['EUR']['high']),str(resposta['GBP']['high']),str(resposta['BTC']['high']),realtime))		
 		return(valores)
 	except:
             return("Erro ao acessar a API")
