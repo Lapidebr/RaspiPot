@@ -11,7 +11,7 @@ import Adafruit_DHT
 import RPi.GPIO as GPIO
 
 
-versao ="19072018.1"
+versao ="07092018.1"
 
 print(time.strftime("%d/%m/%Y %H:%M:%S"), "Bot de telegran para Raspi versao: ",versao,"Criado por Frederico Oliveira e Lucas Cassiano")
 
@@ -96,30 +96,19 @@ def GravarLog(dataMensagemLog, usuarioLog, commandLog):
 	
 #Coletando dados atmoféricos
 def coletarDadosAtmosfericos():
-    dadosColetados = ''
     url = requests.get('https://api.hgbrasil.com/weather/?format=json&cid=BRXX0033')
-    respostajson = json.loads(url.content)
+    resposta = json.loads(url.text)
     
-    dados_array = ['temp','description','currently','city','humidity','wind_speedy','sunrise','sunset', 'date', 'time']
-    informacao_user = ['Temperatura: ', 'Condicao tempo: ', 'Periodo: ', 'Cidade: ', 'Umidade do ar: ', 'Velocidade do vento: ', 'Nascimento do sol: ', 'Por do sol: ', '','']
-    completa = ['°C', '', '', '', '%', '', '', '', '-', '']
-
-    for i in range(0, len(dados_array)):
-        if i < 7 :
-            dadosColetados += (informacao_user[i] + str(respostajson['results'][dados_array[i]]) + completa[i] + '\n').replace(',', '')      
-        elif i == 7:
-			dadosColetados += 'Generate with: https://api.hgbrasil.com/weather/ '
-        elif i > 7:
-		    dadosColetados += (informacao_user[i] + str(respostajson['results'][dados_array[i]]) + completa[i]).replace(',', '')
+    dadosColetados = ('Cidade: {}\nTemperatura:{}ºC\nCondição Tempo:{}\nPeriodo:{}\nUmidade do ar:{}%\nAmanhecer:{}\nAnoitecer:{}\nGenerate by api.hgbrasil.com/weather at {}-{}'.format(str(resposta['results']['city_name']),str(resposta['results']['temp']),str(resposta['results']['description']),str(resposta['results']['currently']),str(resposta['results']['humidity']),str(resposta['results']['sunrise']),str(resposta['results']['sunset']),str(resposta['results']['date']),str(resposta['results']['time'])))
 			
-    return dadosColetados	
+    return (dadosColetados)	
 
 def cotacaoDolar():
 	try:
-		requisicao = requests.get("https://economia.awesomeapi.com.br/json/all")
-		resposta = json.loads(requisicao.text)
-		colecttime = (resposta['USD']['create_date'])
-		realtime = (colecttime[11:19])
+		requisicao = requests.get("https://economia.awesomeapi.com.br/json/all") #atribuindo o JSON para a variável
+		resposta = json.loads(requisicao.text) 
+		colecttime = (resposta['USD']['create_date']) #coletando timestamp do JSON
+		realtime = (colecttime[11:19]) #exibindo somente a hora do timestamp do JSON
 		valores = ('Dólar R${}\nEuro R${}\nLibra R${}\nBitcoin R${}\nGenerate by economia.awesomeapi.com.br at {}(USD)'.format(str(resposta['USD']['high']),str(resposta['EUR']['high']),str(resposta['GBP']['high']),str(resposta['BTC']['high']),realtime))		
 		return(valores)
 	except:
